@@ -118,8 +118,7 @@ async function askNotif(){const p=await Notification.requestPermission();notifPe
 
 function scheduleR(){rTimers.forEach(clearTimeout);rTimers=[];if(notifPerm!=='granted')return;S.workouts.filter(w=>w.reminder&&w.time).forEach(w=>{const ds=nextDow(DAYS.indexOf(w.day));const ms=new Date(`${ds}T${w.time}`).getTime();[1800000,300000].forEach(off=>{const f=ms-off;if(f>Date.now())rTimers.push(setTimeout(()=>new Notification(`🏃 ${w.name}`,{body:`${w.planned}${w.unit} planned · ${off===1800000?'30 min':'5 min'} to go`}),f-Date.now()));});});}
 
-function checkReset(){const m=monday();if(m!==S.lastMonday){function checkReset(){const m=monday();if(m!==S.lastMonday){S.workouts=S.workouts.map(w=>({...w,done:0}));S.lastMonday=m;toast('🔄 Workouts reset for the new week!');}}.forEach(t=>{S.subjects[t]=S.subjects[t].map(s=>({...s,subs:s.subs.map(sub=>({...sub,done:false}))}));});S.lastMonday=m;toast('🔄 Weekly reset!');}}
-
+function checkReset(){const m=monday();if(m!==S.lastMonday){S.workouts=S.workouts.map(w=>({...w,done:0}));S.lastMonday=m;toast('🔄 Workouts reset for the new week!');}}
 function render(){checkReset();renderTabs();renderMain();}
 function setTab(k){S.tab=k;render();}
 
