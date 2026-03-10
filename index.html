@@ -237,9 +237,9 @@ function rPanel(type){
     ${type==='school'?rCatchup():''}
   </div>`;}
 
-function togSub(type,sj,sb){S.subjects[type]=S.subjects[type].map(s=>s.id===sj?{...s,subs:s.subs.map(sub=>sub.id===sb?{...sub,done:!sub.done}:sub)}:s);renderMain();}
-function delSub(type,sj,sb){S.subjects[type]=S.subjects[type].map(s=>s.id===sj?{...s,subs:s.subs.filter(sub=>sub.id!==sb)}:s);renderMain();toast('Removed','info');}
-function delSubj(type,id){S.subjects[type]=S.subjects[type].filter(s=>s.id!==id);renderMain();toast('Removed','info');}
+function togSub(type,sj,sb){S.subjects[type]=S.subjects[type].map(s=>s.id===sj?{...s,subs:s.subs.filter(sub=>sub.id!==sb)}:s);saveS();renderMain();}
+function delSub(type,sj,sb){S.subjects[type]=S.subjects[type].map(s=>s.id===sj?{...s,subs:s.subs.filter(sub=>sub.id!==sb)}:s);saveS();renderMain();toast('Removed','info');}
+function delSubj(type,id){S.subjects[type]=S.subjects[type].filter(s=>s.id!==id);saveS();renderMain();toast('Removed','info');}
 
 // ── Catch-up Classes ──
 function rCatchup(){
@@ -266,8 +266,8 @@ function rCatchup(){
       ${S.catchup.length===0?'<div style="text-align:center;padding:16px 0;color:#CBD5E1;font-size:12px">No catch-up classes 🎉 You\'re up to date!</div>':S.catchup.map(row).join('')}
     </div>`;}
 
-function togCU(id){S.catchup=S.catchup.map(c=>c.id===id?{...c,done:!c.done}:c);renderMain();}
-function delCU(id){S.catchup=S.catchup.filter(c=>c.id!==id);renderMain();toast('Removed','info');}
+function togCU(id){S.catchup=S.catchup.filter(c=>c.id!==id);saveS();renderMain();}
+function delCU(id){S.catchup=S.catchup.filter(c=>c.id!==id);saveS();renderMain();toast('Removed','info');}
 
 function addCU(){modal(`
   <div style="font-family:'Playfair Display',serif;font-size:20px;margin-bottom:20px">Add Catch-up Class</div>
@@ -278,8 +278,8 @@ function addCU(){modal(`
   <button class="btn" onclick="saveCU()" style="flex:2;padding:11px;border-radius:9px;border:none;background:#DC2626;color:#fff;font-size:13px;font-weight:700;justify-content:center">Add Catch-up</button></div>`);}
 
 function saveCU(){const s=document.getElementById('cus').value.trim(),t=document.getElementById('cut').value.trim(),d=document.getElementById('cud').value;if(!s||!t||!d)return;S.catchup.push({id:uid(),subject:s,topic:t,date:d,done:false});closeM();saveS();renderMain();toast('Catch-up class added!');}
-function togT(id){S.tasks=S.tasks.map(t=>t.id===id?{...t,done:!t.done}:t);renderMain();}
-function delT(id){S.tasks=S.tasks.filter(t=>t.id!==id);renderMain();toast('Removed','info');}
+function togT(id){S.tasks=S.tasks.filter(t=>t.id!==id);saveS();renderMain();}
+function delT(id){S.tasks=S.tasks.filter(t=>t.id!==id);saveS();renderMain();toast('Removed','info');}
 
 // ── Personal ──
 function rPersonal(){
