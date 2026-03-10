@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -123,7 +122,18 @@ function toast(msg,type='ok'){const el=document.getElementById('toast');el.textC
 
 async function askNotif(){const p=await Notification.requestPermission();notifPerm=p;if(p==='granted'){toast('🔔 Reminders enabled!');document.getElementById('nArea').innerHTML='<span style="font-size:11px;color:#059669;font-weight:600">🔔 On</span>';scheduleR();}else toast('Permission denied','err');}
 
-function scheduleR(){rTimers.forEach(clearTimeout);rTimers=[];if(notifPerm!=='granted')return;S.workouts.filter(w=>w.reminder&&w.time).forEach(w=>{const ds=nextDow(DAYS.indexOf(w.day));const ms=new Date(`${ds}T${w.time}`).getTime();[1800000,300000].forEach(off=>{const f=ms-off;if(f>Date.now())rTimers.push(setTimeout(()=>new Notification(`🏃 ${w.name}`,{body:`${w.planned}${w.unit} planned · ${off===1800000?'30 min':'5 min'} to go`}),f-Date.now()));});});}
+function scheduleR(){
+  rTimers.forEach(clearTimeout);rTimers=[];
+  if(notifPerm!=='granted')return;
+  const schedule=(title,dateStr,timeStr)=>{
+    if(!timeStr||!dateStr)return;
+    const ms=new Date(`${dateStr}T${timeStr}`).getTime();
+    [1800000,300000].forEach(off=>{const f=ms-off;if(f>Date.now())rTimers.push(setTimeout(()=>new Notification(`🔔 ${title}`,{body:`${off===1800000?'30 min':'5 min'} to go!`}),f-Date.now()));});
+  };
+  S.workouts.filter(w=>w.reminder&&w.time).forEach(w=>schedule(`🏃 ${w.name} — ${w.planned}${w.unit}`,nextDow(DAYS.indexOf(w.day)),w.time));
+  S.tasks.filter(t=>t.reminder&&t.time&&t.date&&!t.done).forEach(t=>schedule(t.title,t.date,t.time));
+  ['school','work','reserve'].forEach(type=>S.subjects[type].forEach(subj=>subj.subs.filter(s=>s.reminder&&s.time&&!s.done).forEach(s=>schedule(s.title,nextDow(s.dow),s.time))));
+}
 
 function checkReset(){const m=monday();if(m!==S.lastMonday){S.workouts=S.workouts.map(w=>({...w,done:0}));S.lastMonday=m;toast('🔄 Workouts reset for the new week!');}}
 
@@ -353,14 +363,19 @@ function addSubj(type){M.st=type;M.sc=SEC[type].color;const label=type==='school
 function pickC(c){M.sc=c;document.querySelectorAll('#cp>div').forEach(el=>el.style.borderColor='transparent');document.getElementById('c'+c.replace('#','')).style.borderColor='#0F172A';}
 function saveSubj(){const name=document.getElementById('sn').value.trim();if(!name)return;S.subjects[M.st].push({id:uid(),name,color:M.sc||'#2563EB',subs:[]});closeM();saveS();renderMain();toast('Added!');}
 
-function addSub(type,sj){M.st=type;M.sj=sj;modal(`
+function addSub(type,sj){M.st=type;M.sj=sj;M.sr=false;modal(`
   <div style="font-family:'Playfair Display',serif;font-size:20px;margin-bottom:20px">Add Weekly Item</div>
   <div style="margin-bottom:12px"><label class="fl">Title</label><input class="fi" id="st" placeholder="e.g. Problem Set 4"/></div>
   <div class="mr"><div><label class="fl">Due Day</label><select class="fi" id="sd">${DAYS.map((d,i)=>`<option value="${i}">${d}</option>`).join('')}</select></div>
   <div><label class="fl">Due Time</label><input class="fi" type="time" id="stm" value="23:59"/></div></div>
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;padding:10px 12px;background:#F8FAFC;border-radius:9px">
+    <div class="tgl" id="sr" onclick="togSR()" style="background:#E2E8F0"><div class="tk" style="left:3px"></div></div>
+    <span style="font-size:12px;font-weight:600">Reminder 30 & 5 min before 🔔</span>
+  </div>
   <div class="ma"><button class="cb" onclick="closeM()">Cancel</button>
   <button class="btn" onclick="saveSub()" style="flex:2;padding:11px;border-radius:9px;border:none;background:#0F172A;color:#fff;font-size:13px;font-weight:700;justify-content:center">Add</button></div>`);}
-function saveSub(){const title=document.getElementById('st').value.trim();if(!title)return;S.subjects[M.st]=S.subjects[M.st].map(s=>s.id===M.sj?{...s,subs:[...s.subs,{id:uid(),title,dow:Number(document.getElementById('sd').value),time:document.getElementById('stm').value,done:false}]}:s);closeM();saveS();renderMain();toast('Added!');}
+function togSR(){M.sr=!M.sr;const t=document.getElementById('sr');t.style.background=M.sr?'#059669':'#E2E8F0';t.querySelector('.tk').style.left=M.sr?'19px':'3px';}
+function saveSub(){const title=document.getElementById('st').value.trim();if(!title)return;S.subjects[M.st]=S.subjects[M.st].map(s=>s.id===M.sj?{...s,subs:[...s.subs,{id:uid(),title,dow:Number(document.getElementById('sd').value),time:document.getElementById('stm').value,reminder:M.sr||false,done:false}]}:s);closeM();saveS();scheduleR();renderMain();toast('Added!');}
 
 function addGoal(){M.gt='milestone';rGModal();}
 function rGModal(){const t=M.gt;modal(`
@@ -379,15 +394,20 @@ function rGModal(){const t=M.gt;modal(`
 function setGT(t){M.gt=t;rGModal();}
 function saveGoal(){const title=document.getElementById('gt').value.trim();if(!title)return;S.goals.push({id:uid(),type:M.gt,title,emoji:document.getElementById('ge').value,done:false,targetDate:M.gt==='milestone'?document.getElementById('gd').value:'',streakTarget:M.gt==='streak'?Number(document.getElementById('gtar').value):30,streakDone:M.gt==='streak'?Number(document.getElementById('gdone').value):0});closeM();saveS();renderMain();toast('Goal added!');}
 
-function addT(section){M.ts=section;const cats={school:'Catch-up',work:'Task',reserve:'Admin',personal:'Wellness'};modal(`
+function addT(section){M.ts=section;M.tr=false;const cats={school:'Catch-up',work:'Task',reserve:'Admin',personal:'Wellness'};modal(`
   <div style="font-family:'Playfair Display',serif;font-size:20px;margin-bottom:20px">Add Task</div>
   <div style="margin-bottom:12px"><label class="fl">Title</label><input class="fi" id="tt" placeholder="What do you need to do?"/></div>
   <div class="mr"><div><label class="fl">Date</label><input class="fi" type="date" id="tdate"/></div><div><label class="fl">Time</label><input class="fi" type="time" id="ttime"/></div></div>
   <div style="margin-bottom:12px"><label class="fl">Category</label><input class="fi" id="tcat" value="${cats[section]||'Task'}"/></div>
-  <div style="margin-bottom:20px"><label class="fl">Priority</label><select class="fi" id="tpri"><option>High</option><option selected>Medium</option><option>Low</option></select></div>
+  <div style="margin-bottom:12px"><label class="fl">Priority</label><select class="fi" id="tpri"><option>High</option><option selected>Medium</option><option>Low</option></select></div>
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;padding:10px 12px;background:#F8FAFC;border-radius:9px">
+    <div class="tgl" id="tr" onclick="togTR()" style="background:#E2E8F0"><div class="tk" style="left:3px"></div></div>
+    <span style="font-size:12px;font-weight:600">Reminder 30 & 5 min before 🔔</span>
+  </div>
   <div class="ma"><button class="cb" onclick="closeM()">Cancel</button>
   <button class="btn" onclick="saveT()" style="flex:2;padding:11px;border-radius:9px;border:none;background:#0F172A;color:#fff;font-size:13px;font-weight:700;justify-content:center">Add Task</button></div>`);}
-function saveT(){const title=document.getElementById('tt').value.trim(),date=document.getElementById('tdate').value;if(!title||!date)return;S.tasks.push({id:uid(),section:M.ts,title,cat:document.getElementById('tcat').value,date,time:document.getElementById('ttime').value,priority:document.getElementById('tpri').value,done:false});closeM();saveS();renderMain();toast('Task added!');}
+function togTR(){M.tr=!M.tr;const t=document.getElementById('tr');t.style.background=M.tr?'#059669':'#E2E8F0';t.querySelector('.tk').style.left=M.tr?'19px':'3px';}
+function saveT(){const title=document.getElementById('tt').value.trim(),date=document.getElementById('tdate').value;if(!title||!date)return;S.tasks.push({id:uid(),section:M.ts,title,cat:document.getElementById('tcat').value,date,time:document.getElementById('ttime').value,priority:document.getElementById('tpri').value,reminder:M.tr||false,done:false});closeM();saveS();scheduleR();renderMain();toast('Task added!');}
 
 if(notifPerm==='granted'){document.getElementById('nArea').innerHTML='<span style="font-size:11px;color:#059669;font-weight:600">🔔 On</span>';scheduleR();}
 render();
