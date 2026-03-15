@@ -39,7 +39,7 @@ setInterval(async () => {
     console.log(`${r.title}: diff=${Math.round(diff/1000)}s`);
     const thirtyMin = 30 * 60 * 1000;
     const fiveMin = 5 * 60 * 1000;
-    const window = 60 * 1000;
+    const window = 3 * 60 * 1000;
     const key30 = r.id + '_30';
     const key5  = r.id + '_5';
     if (diff > 0 && diff <= thirtyMin + window && diff >= thirtyMin - window && !sent.has(key30)) {
