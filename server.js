@@ -34,7 +34,7 @@ setInterval(async () => {
   const now = Date.now();
   console.log(`Checking ${reminders.length} reminders at ${new Date().toISOString()}`);
   for (const r of reminders) {
-    const fireAt = new Date(`${r.date}T${r.time}`).getTime();
+    const fireAt = new Date(`${r.date}T${r.time}+02:00`).getTime();
     const diff = fireAt - now;
     console.log(`${r.title}: diff=${Math.round(diff/1000)}s`);
     const thirtyMin = 30 * 60 * 1000;
