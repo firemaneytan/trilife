@@ -23,36 +23,29 @@ app.get('/', (req, res) => res.send('TriLife server running!'));
 
 setInterval(async () => {
   const now = Date.now();
+  console.log(`Checking ${reminders.length} reminders at ${new Date().toISOString()}`);
   for (const r of reminders) {
     const fireAt = new Date(`${r.date}T${r.time}`).getTime();
     const diff = fireAt - now;
+    console.log(`${r.title}: diff=${Math.round(diff/1000)}s`);
     const thirtyMin = 30 * 60 * 1000;
     const fiveMin = 5 * 60 * 1000;
     const window = 60 * 1000;
-
     const key30 = r.id + '_30';
     const key5  = r.id + '_5';
-
     if (diff > 0 && diff <= thirtyMin + window && diff >= thirtyMin - window && !sent.has(key30)) {
       sent.add(key30);
       try {
-        await client.messages.create({
-          from: FROM, to: TO,
-          body: `⏰ TriLife: *${r.title}* in 30 minutes!`
-        });
+        await client.messages.create({ from: FROM, to: TO, body: `⏰ TriLife: *${r.title}* in 30 minutes!` });
         console.log(`Sent 30min reminder for ${r.title}`);
-      } catch(e){ console.error(e.message); }
+      } catch(e){ console.error('30min error:', e.message); }
     }
-
     if (diff > 0 && diff <= fiveMin + window && diff >= fiveMin - window && !sent.has(key5)) {
       sent.add(key5);
       try {
-        await client.messages.create({
-          from: FROM, to: TO,
-          body: `⏰ TriLife: *${r.title}* in 5 minutes!`
-        });
+        await client.messages.create({ from: FROM, to: TO, body: `⏰ TriLife: *${r.title}* in 5 minutes!` });
         console.log(`Sent 5min reminder for ${r.title}`);
-      } catch(e){ console.error(e.message); }
+      } catch(e){ console.error('5min error:', e.message); }
     }
   }
 }, 60000);
