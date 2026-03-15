@@ -102,8 +102,7 @@ const DEFAULT={
   ],
 };
 function loadS(){try{const d=localStorage.getItem('trilife');return d?JSON.parse(d):DEFAULT;}catch(e){return DEFAULT;}}
-function saveS(){try{localStorage.setItem('trilife',JSON.stringify(S));}catch(e){}}
-let S=loadS();
+function saveS(){try{localStorage.setItem('trilife',JSON.stringify(S));syncReminders();}catch(e){}}let S=loadS();
 if(!S.catchup)S.catchup=[];
 if(!S.subjects.work)S.subjects.work=DEFAULT.subjects.work;
 if(!S.subjects.reserve)S.subjects.reserve=DEFAULT.subjects.reserve;
@@ -408,7 +407,28 @@ function addT(section){M.ts=section;M.tr=false;const cats={school:'Catch-up',wor
   <button class="btn" onclick="saveT()" style="flex:2;padding:11px;border-radius:9px;border:none;background:#0F172A;color:#fff;font-size:13px;font-weight:700;justify-content:center">Add Task</button></div>`);}
 function togTR(){M.tr=!M.tr;const t=document.getElementById('tr');t.style.background=M.tr?'#059669':'#E2E8F0';t.querySelector('.tk').style.left=M.tr?'19px':'3px';}
 function saveT(){const title=document.getElementById('tt').value.trim(),date=document.getElementById('tdate').value;if(!title||!date)return;S.tasks.push({id:uid(),section:M.ts,title,cat:document.getElementById('tcat').value,date,time:document.getElementById('ttime').value,priority:document.getElementById('tpri').value,reminder:M.tr||false,done:false});closeM();saveS();scheduleR();renderMain();toast('Task added!');}
+async function syncReminders(){
+  const reminders=[];
+  S.workouts.filter(w=>w.reminder&&w.time).forEach(w=>{
+    const date=nextDow(DAYS.indexOf(w.day));
+    reminders.push({id:'w'+w.id,title:w.name,date,time:w.time});
+  });
+  S.tasks.filter(t=>t.reminder&&t.time&&t.date).forEach(t=>{
+    reminders.push({id:'t'+t.id,title:t.title,date:t.date,time:t.time});
+  });
+  ['school','work','reserve'].forEach(type=>S.subjects[type].forEach(subj=>subj.subs.filter(s=>s.reminder&&s.time).forEach(s=>{
+    reminders.push({id:'s'+s.id,title:s.title,date:nextDow(s.dow),time:s.time});
+  })));
+  try{
+    await fetch('https://trilife-production.up.railway.app/reminders',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({reminders})
+    });
+  }catch(e){console.log('Server sync failed',e);}
+}
 
+  
 if(notifPerm==='granted'){document.getElementById('nArea').innerHTML='<span style="font-size:11px;color:#059669;font-weight:600">🔔 On</span>';scheduleR();}
 render();
 </script>
