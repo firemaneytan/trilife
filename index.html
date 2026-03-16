@@ -457,7 +457,7 @@ function rWModal(){const w=M.w;modal(`
   <div class="ma"><button class="cb" onclick="closeM()">Cancel</button>
   <button class="btn" onclick="saveW()" style="flex:2;padding:11px;border-radius:9px;border:none;background:#059669;color:#fff;font-size:13px;font-weight:700;justify-content:center">Save Workout</button></div>`);}
 function togWR(){M.w.reminder=!M.w.reminder;const t=document.getElementById('wr');t.style.background=M.w.reminder?'#059669':'#E2E8F0';t.querySelector('.tk').style.left=M.w.reminder?'19px':'3px';}
-function saveW(){const name=document.getElementById('wn').value.trim(),planned=document.getElementById('wp').value;if(!name||!planned)return;const e={id:M.w.id||uid(),name,unit:document.getElementById('wu').value,planned:Number(planned),done:M.w.id?M.w.done:0,day:document.getElementById('wd').value,time:document.getElementById('wt').value,reminder:M.w.reminder};if(M.w.id)S.workouts=S.workouts.map(w=>w.id===e.id?e:w);else S.workouts.push(e);closeM();scheduleR();saveS();render();toast('Workout saved!');}
+function saveW(){const name=document.getElementById('wn').value.trim(),planned=document.getElementById('wp').value;if(!name||!planned)return;const day=document.getElementById('wd').value,time=document.getElementById('wt').value;const e={id:M.w.id||uid(),name,unit:document.getElementById('wu').value,planned:Number(planned),done:M.w.id?M.w.done:0,day,time,reminder:M.w.reminder};if(M.w.id)S.workouts=S.workouts.map(w=>w.id===e.id?e:w);else S.workouts.push(e);if(M.w.reminder&&time&&gToken){const date=nextDow(DAYS.indexOf(day));addToGCal(`🏃 ${name} — ${planned}${document.getElementById('wu').value}`,date,time);}closeM();scheduleR();saveS();render();toast('Workout saved!');}
 
 function addSubj(type){M.st=type;M.sc=SEC[type].color;const label=type==='school'?'Subject':type==='work'?'Department':'Unit';const ph=type==='school'?'e.g. Statistics':type==='work'?'e.g. My Job':'e.g. Reserve Unit';modal(`
   <div style="font-family:'Playfair Display',serif;font-size:20px;margin-bottom:20px">Add ${label}</div>
@@ -481,7 +481,7 @@ function addSub(type,sj){M.st=type;M.sj=sj;M.sr=false;modal(`
   <div class="ma"><button class="cb" onclick="closeM()">Cancel</button>
   <button class="btn" onclick="saveSub()" style="flex:2;padding:11px;border-radius:9px;border:none;background:#0F172A;color:#fff;font-size:13px;font-weight:700;justify-content:center">Add</button></div>`);}
 function togSR(){M.sr=!M.sr;const t=document.getElementById('sr');t.style.background=M.sr?'#059669':'#E2E8F0';t.querySelector('.tk').style.left=M.sr?'19px':'3px';}
-function saveSub(){const title=document.getElementById('st').value.trim();if(!title)return;S.subjects[M.st]=S.subjects[M.st].map(s=>s.id===M.sj?{...s,subs:[...s.subs,{id:uid(),title,dow:Number(document.getElementById('sd').value),time:document.getElementById('stm').value,reminder:M.sr||false,done:false}]}:s);closeM();saveS();scheduleR();renderMain();toast('Added!');}
+function saveSub(){const title=document.getElementById('st').value.trim();if(!title)return;const dow=Number(document.getElementById('sd').value),time=document.getElementById('stm').value,reminder=M.sr||false;S.subjects[M.st]=S.subjects[M.st].map(s=>s.id===M.sj?{...s,subs:[...s.subs,{id:uid(),title,dow,time,reminder,done:false}]}:s);if(reminder&&time&&gToken)addToGCal(title,nextDow(dow),time);closeM();saveS();scheduleR();renderMain();toast('Added!');}
 
 function addGoal(){M.gt='milestone';rGModal();}
 function rGModal(){const t=M.gt;modal(`
