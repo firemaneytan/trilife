@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>TriLife</title>
 <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet"/>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Figtree','Helvetica Neue',sans-serif;background:#F8FAFC;color:#0F172A;min-height:100vh}
@@ -52,6 +53,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
     <span style="font-family:'Playfair Display',serif;font-size:19px">TriLife</span>
   </div>
   <div id="nArea"><button class="btn" onclick="askNotif()" style="font-size:11px;padding:6px 11px;border-radius:7px;font-weight:600;background:#FFFBEB;border:1px solid #FDE68A;color:#92400E">🔔 Enable Reminders</button></div>
+  <div id="gcalArea"><button class="btn" id="gcalBtn" onclick="loadGapi()" style="font-size:11px;padding:6px 11px;border-radius:7px;font-weight:600;background:#EFF6FF;border:1px solid #BFDBFE;color:#1D4ED8">📅 Connect Calendar</button></div>
 </div>
 <div class="tabbar" id="tabbar"></div>
 <div class="main" id="main"></div>
@@ -67,7 +69,8 @@ const SEC={
   goals:   {label:'Goals',       icon:'🎯',color:'#0891B2',light:'#ECFEFF'},
 };
 const TABS=[
-  {k:'athlete', icon:'🏃',label:'Athlete',     col:'#059669'},
+  {k:'today',   icon:'📅',label:'Today',        col:'#0F172A'},
+  {k:'athlete', icon:'🏃',label:'Athlete',      col:'#059669'},
   {k:'school',  icon:'📚',label:'School',       col:'#2563EB'},
   {k:'work',    icon:'💼',label:'Work',         col:'#D97706'},
   {k:'reserve', icon:'🎖️',label:'Reserve Duty', col:'#7C3AED'},
@@ -75,7 +78,7 @@ const TABS=[
   {k:'goals',   icon:'🎯',label:'Goals',        col:'#0891B2'},
 ];
 const DEFAULT={
-  tab:'athlete',
+  tab:'today',
   lastMonday:monday(),
   workouts:[
     {id:1,name:'Morning Run',    unit:'km',planned:10,done:0,day:'Mon',time:'06:30',reminder:true},
@@ -102,7 +105,8 @@ const DEFAULT={
   ],
 };
 function loadS(){try{const d=localStorage.getItem('trilife');return d?JSON.parse(d):DEFAULT;}catch(e){return DEFAULT;}}
-function saveS(){try{localStorage.setItem('trilife',JSON.stringify(S));syncReminders();}catch(e){}}let S=loadS();
+function saveS(){try{localStorage.setItem('trilife',JSON.stringify(S));}catch(e){}}
+let S=loadS();
 if(!S.catchup)S.catchup=[];
 if(!S.subjects.work)S.subjects.work=DEFAULT.subjects.work;
 if(!S.subjects.reserve)S.subjects.reserve=DEFAULT.subjects.reserve;
@@ -141,7 +145,110 @@ function setTab(k){S.tab=k;render();}
 
 function renderTabs(){document.getElementById('tabbar').innerHTML=TABS.map(t=>`<button class="tab" onclick="setTab('${t.k}')" style="color:${S.tab===t.k?t.col:'#94A3B8'};font-weight:${S.tab===t.k?700:500};border-bottom-color:${S.tab===t.k?t.col:'transparent'}">${t.icon} ${t.label}</button>`).join('');}
 
-function renderMain(){const el=document.getElementById('main');if(S.tab==='athlete')el.innerHTML=rAthlete();else if(['school','work','reserve'].includes(S.tab))el.innerHTML=rPanel(S.tab);else if(S.tab==='personal')el.innerHTML=rPersonal();else el.innerHTML=rGoals();}
+function renderMain(){const el=document.getElementById('main');if(S.tab==='today')el.innerHTML=rToday();else if(S.tab==='athlete')el.innerHTML=rAthlete();else if(['school','work','reserve'].includes(S.tab))el.innerHTML=rPanel(S.tab);else if(S.tab==='personal')el.innerHTML=rPersonal();else el.innerHTML=rGoals();}
+
+// ── Today View ──
+function rToday(){
+  const todayDow=(new Date().getDay()+6)%7;
+  const ts=today();
+
+  // Today's workouts
+  const todayWorkouts=S.workouts.filter(w=>DAYS.indexOf(w.day)===todayDow);
+
+  // Submissions due today
+  const todaySubs=[];
+  ['school','work','reserve'].forEach(type=>{
+    S.subjects[type].forEach(subj=>{
+      subj.subs.filter(s=>s.dow===todayDow).forEach(s=>{
+        todaySubs.push({...s,subjectName:subj.name,subjectColor:subj.color,type});
+      });
+    });
+  });
+
+  // Tasks due today
+  const todayTasks=S.tasks.filter(t=>t.date===ts);
+
+  // Upcoming goals (within 7 days)
+  const urgentGoals=S.goals.filter(g=>g.type==='milestone'&&g.targetDate&&!g.done&&daysNum(g.targetDate)<=7&&daysNum(g.targetDate)>=0);
+
+  // Pending catchup
+  const pendingCatchup=S.catchup.slice(0,3);
+
+  const total=todayWorkouts.length+todaySubs.length+todayTasks.length;
+  const now=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+
+  const empty='<div style="text-align:center;padding:16px 0;color:#CBD5E1;font-size:12px">Nothing here today 🎉</div>';
+
+  const workoutRows=todayWorkouts.map(w=>{
+    const wp=w.planned?Math.round(w.done/w.planned*100):0;
+    const col=wp>=100?'#059669':wp>=60?'#D97706':'#2563EB';
+    return`<div class="card" style="padding:13px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px;border-left:3px solid #059669">
+      <span style="font-size:18px">🏃</span>
+      <div style="flex:1"><div style="font-size:13px;font-weight:700;margin-bottom:2px">${w.name}</div>
+      <div style="font-size:11px;color:#94A3B8">${w.planned}${w.unit} planned${w.time?' · '+ft(w.time):''}</div></div>
+      <div style="text-align:right"><div style="font-size:13px;font-weight:700;color:${col}">${wp}%</div><div style="font-size:10px;color:#94A3B8">${w.done}/${w.planned}${w.unit}</div></div>
+    </div>`;}).join('');
+
+  const subRows=todaySubs.map(s=>`
+    <div class="card" style="padding:13px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px;border-left:3px solid ${s.subjectColor}">
+      <div class="check" onclick="togSubToday('${s.type}','${s.subjectName}',${s.id})" style="width:18px;height:18px;border-radius:5px;border:2px solid ${s.subjectColor};background:transparent;flex-shrink:0"></div>
+      <div style="flex:1"><div style="font-size:13px;font-weight:700;margin-bottom:2px">${s.title}</div>
+      <div style="font-size:11px;color:#94A3B8">${s.subjectName} · due ${ft(s.time)}</div></div>
+      <span class="bdg" style="background:${s.subjectColor}18;color:${s.subjectColor}">${SEC[s.type].label}</span>
+    </div>`).join('');
+
+  const taskRows=todayTasks.map(t=>`
+    <div class="card" style="padding:13px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px;border-left:3px solid ${SEC[t.section]?.color||'#6B7280'}">
+      <div class="check" onclick="togT(${t.id})" style="width:18px;height:18px;border-radius:5px;border:2px solid ${SEC[t.section]?.color||'#6B7280'};background:transparent;flex-shrink:0"></div>
+      <div style="flex:1"><div style="font-size:13px;font-weight:700;margin-bottom:2px">${t.title}</div>
+      <div style="font-size:11px;color:#94A3B8">${t.cat}${t.time?' · '+ft(t.time):''}</div></div>
+      <span class="bdg" style="background:${t.priority==='High'?'#FEF2F2':t.priority==='Medium'?'#FFFBEB':'#F9FAFB'};color:${t.priority==='High'?'#DC2626':t.priority==='Medium'?'#D97706':'#9CA3AF'}">${t.priority}</span>
+    </div>`).join('');
+
+  const goalRows=urgentGoals.map(g=>{
+    const d=daysNum(g.targetDate);
+    return`<div class="card" style="padding:13px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px;border-left:3px solid #0891B2">
+      <span style="font-size:20px">${g.emoji}</span>
+      <div style="flex:1"><div style="font-size:13px;font-weight:700;margin-bottom:2px">${g.title}</div>
+      <div style="font-size:11px;color:#94A3B8">Target: ${fd(g.targetDate)}</div></div>
+      <span style="font-size:18px;font-weight:800;color:${d<=1?'#DC2626':'#D97706'}">${d}d</span>
+    </div>`;}).join('');
+
+  const catchupRows=pendingCatchup.map(c=>`
+    <div class="card" style="padding:13px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px;border-left:3px solid #DC2626">
+      <div class="check" onclick="togCU(${c.id})" style="width:18px;height:18px;border-radius:5px;border:2px solid #DC2626;background:transparent;flex-shrink:0"></div>
+      <div style="flex:1"><div style="font-size:13px;font-weight:700;margin-bottom:2px">${c.topic}</div>
+      <div style="font-size:11px;color:#94A3B8">${c.subject} · missed ${fd(c.date)}</div></div>
+    </div>`).join('');
+
+  const section=(title,icon,content,color)=>`
+    <div style="margin-bottom:22px">
+      <div style="font-size:11px;font-weight:700;color:${color};letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">${icon} ${title}</div>
+      ${content||empty}
+    </div>`;
+
+  return`<div class="fade">
+    <div style="margin-bottom:20px">
+      <div style="font-family:'Playfair Display',serif;font-size:24px;font-weight:700;margin-bottom:4px">Today</div>
+      <div style="font-size:13px;color:#94A3B8">${now} · ${total} item${total!==1?'s':''} to tackle</div>
+    </div>
+    ${total===0&&pendingCatchup.length===0&&urgentGoals.length===0?`
+      <div style="text-align:center;padding:60px 0">
+        <div style="font-size:48px;margin-bottom:12px">🎉</div>
+        <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;margin-bottom:8px">You're all clear!</div>
+        <div style="font-size:13px;color:#94A3B8">Nothing due today. Enjoy your day!</div>
+      </div>`:`
+      ${todayWorkouts.length?section('Workouts','🏃',workoutRows,'#059669'):''}
+      ${todaySubs.length?section('Due Today','📚',subRows,'#2563EB'):''}
+      ${todayTasks.length?section('Tasks','✅',taskRows,'#0F172A'):''}
+      ${urgentGoals.length?section('Goals This Week','🎯',goalRows,'#0891B2'):''}
+      ${pendingCatchup.length?section('Catch-up Classes','📖',catchupRows,'#DC2626'):''}`}
+  </div>`;}
+
+function togSubToday(type,subjName,subId){
+  S.subjects[type]=S.subjects[type].map(s=>s.name===subjName?{...s,subs:s.subs.filter(sub=>sub.id!==subId)}:s);
+  saveS();renderMain();toast('Done! ✓');
+}
 
 // ── Athlete ──
 function rAthlete(){
@@ -406,30 +513,58 @@ function addT(section){M.ts=section;M.tr=false;const cats={school:'Catch-up',wor
   <div class="ma"><button class="cb" onclick="closeM()">Cancel</button>
   <button class="btn" onclick="saveT()" style="flex:2;padding:11px;border-radius:9px;border:none;background:#0F172A;color:#fff;font-size:13px;font-weight:700;justify-content:center">Add Task</button></div>`);}
 function togTR(){M.tr=!M.tr;const t=document.getElementById('tr');t.style.background=M.tr?'#059669':'#E2E8F0';t.querySelector('.tk').style.left=M.tr?'19px':'3px';}
-function saveT(){const title=document.getElementById('tt').value.trim(),date=document.getElementById('tdate').value;if(!title||!date)return;S.tasks.push({id:uid(),section:M.ts,title,cat:document.getElementById('tcat').value,date,time:document.getElementById('ttime').value,priority:document.getElementById('tpri').value,reminder:M.tr||false,done:false});closeM();saveS();scheduleR();renderMain();toast('Task added!');}
-async function syncReminders(){
-  const reminders=[];
-  S.workouts.filter(w=>w.reminder&&w.time).forEach(w=>{
-    const date=nextDow(DAYS.indexOf(w.day));
-    reminders.push({id:'w'+w.id,title:w.name,date,time:w.time});
-  });
-  S.tasks.filter(t=>t.reminder&&t.time&&t.date).forEach(t=>{
-    reminders.push({id:'t'+t.id,title:t.title,date:t.date,time:t.time});
-  });
-  ['school','work','reserve'].forEach(type=>S.subjects[type].forEach(subj=>subj.subs.filter(s=>s.reminder&&s.time).forEach(s=>{
-    reminders.push({id:'s'+s.id,title:s.title,date:nextDow(s.dow),time:s.time});
-  })));
-  try{
-    await fetch('https://trilife-production.up.railway.app/reminders',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({reminders})
-    });
-  }catch(e){console.log('Server sync failed',e);}
+function saveT(){const title=document.getElementById('tt').value.trim(),date=document.getElementById('tdate').value,time=document.getElementById('ttime').value;if(!title||!date)return;S.tasks.push({id:uid(),section:M.ts,title,cat:document.getElementById('tcat').value,date,time,priority:document.getElementById('tpri').value,reminder:M.tr||false,done:false});closeM();saveS();scheduleR();renderMain();toast('Task added!');if(M.tr&&time)addToGCal(title,date,time);}
+
+if(notifPerm==='granted'){document.getElementById('nArea').innerHTML='<span style="font-size:11px;color:#059669;font-weight:600">🔔 On</span>';scheduleR();}
+
+// ── Google Calendar ──
+const GCAL_CLIENT_ID='260477988575-i3n0dm712s4f9bf46ie6s8kdgi9ddlda.apps.googleusercontent.com';
+const GCAL_SCOPE='https://www.googleapis.com/auth/calendar.events';
+let gToken=null;
+
+function loadGapi(){
+  const s=document.createElement('script');
+  s.src='https://accounts.google.com/gsi/client';
+  s.onload=()=>{
+    google.accounts.oauth2.initTokenClient({
+      client_id:GCAL_CLIENT_ID,
+      scope:GCAL_SCOPE,
+      callback:(resp)=>{
+        if(resp.access_token){
+          gToken=resp.access_token;
+          toast('📅 Google Calendar connected!');
+          document.getElementById('gcalBtn').innerHTML='📅 Calendar On';
+          document.getElementById('gcalBtn').style.background='#ECFDF5';
+          document.getElementById('gcalBtn').style.color='#059669';
+        }
+      }
+    }).requestAccessToken();
+  };
+  document.head.appendChild(s);
 }
 
-  
-if(notifPerm==='granted'){document.getElementById('nArea').innerHTML='<span style="font-size:11px;color:#059669;font-weight:600">🔔 On</span>';scheduleR();}
+async function addToGCal(title,date,time){
+  if(!gToken){toast('Connect Google Calendar first!','err');return;}
+  if(!date||!time){toast('Need date and time for Calendar','err');return;}
+  const start=new Date(`${date}T${time}`);
+  const end=new Date(start.getTime()+60*60*1000);
+  const event={
+    summary:title,
+    start:{dateTime:start.toISOString(),timeZone:'Asia/Jerusalem'},
+    end:{dateTime:end.toISOString(),timeZone:'Asia/Jerusalem'},
+    reminders:{useDefault:false,overrides:[{method:'popup',minutes:30},{method:'popup',minutes:5}]}
+  };
+  try{
+    const r=await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events',{
+      method:'POST',
+      headers:{Authorization:`Bearer ${gToken}`,'Content-Type':'application/json'},
+      body:JSON.stringify(event)
+    });
+    if(r.ok){toast('📅 Added to Google Calendar!');}
+    else{const e=await r.json();toast('Calendar error: '+e.error.message,'err');}
+  }catch(e){toast('Calendar error','err');}
+}
+
 render();
 </script>
 </body>
